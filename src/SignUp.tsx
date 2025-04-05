@@ -23,7 +23,7 @@ const SignUp = () => {
 			body: JSON.stringify({ name, email, phone, address, password }),
 		})
 			.then((response) => {
-				if (response.status==200) {
+				if (response.status == 200) {
 					handleSuccess("User created successfully");
 				} else {
 					handleError("Error creating user");

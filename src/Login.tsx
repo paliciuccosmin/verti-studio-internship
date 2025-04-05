@@ -1,11 +1,12 @@
-import { time } from "node:console";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-const  Login = () => {
+const Login = () => {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState("");
 	const [success, setSuccess] = useState("");
+	const navigate = useNavigate();
 
 	const handleLogin = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -16,14 +17,31 @@ const  Login = () => {
 				credentials: "include",
 				body: JSON.stringify({ email, password }),
 			});
+
 			if (!res.ok) {
-				throw new Error("Login failed");
+				if (res.status === 400) {
+					throw new Error("Please fill in all fields");
+				} else if (res.status === 404) {
+					throw new Error("User not found");
+				} else if (res.status === 401) {
+					throw new Error("Invalid email or password");
+				} else {
+					throw new Error("Login failed");
+				}
 			}
+
 			setSuccess("Login successful");
-			await new Promise(resolve => setTimeout(resolve, 1000));
-			window.location.href = "/profile";
+
+			// Redirect after a short delay to show success message
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+
+			// Redirecting to profile page
+			navigate("/profile");
 		} catch (err) {
-			setError((err as Error).message);
+			const errorMessage =
+				(err as Error).message ||
+				"An unexpected error occurred. Please try again.";
+			setError(errorMessage);
 		}
 	};
 
@@ -36,7 +54,7 @@ const  Login = () => {
 					className="mb-2 rounded-full scale-40"
 				/>
 				<h1 className="text-2xl font-bold mb-4">Sign Up</h1>
-				<form className="w-80">
+				<form className="w-80" onSubmit={handleLogin}>
 					<div className="mb-4">
 						<label className="block text-gray-700 mb-2" htmlFor="email">
 							Email
@@ -68,7 +86,6 @@ const  Login = () => {
 					</div>
 					<button
 						type="submit"
-						onClick={handleLogin}
 						className="w-full bg-indigo-400 text-white py-2 rounded-lg hover:bg-indigo-600 transition duration-200 mt-4"
 					>
 						Sign In
@@ -85,6 +102,6 @@ const  Login = () => {
 			</div>
 		</div>
 	);
-}
+};
 
 export default Login;
