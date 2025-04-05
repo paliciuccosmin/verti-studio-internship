@@ -62,7 +62,7 @@ const server = serve({
 			}
 		},
 		"/api/signup": async (req) => {
-			try{ 
+			try {
 				const { name, email, phone, address, password } = await req.json();
 
 				// Hash the password
@@ -79,8 +79,7 @@ const server = serve({
 				);
 
 				return new Response("User created successfully", { status: 201 });
-			}
-			catch (error) {
+			} catch (error) {
 				console.error("Error creating user:", error);
 				return new Response("Error creating user", { status: 500 });
 			}
@@ -107,15 +106,14 @@ const server = serve({
 
 				// Set a cookie or session here if needed
 				const sessionId = db
-						.query(`SELECT id FROM clients WHERE email = ?`)
-						.get(email);
+					.query(`SELECT id FROM clients WHERE email = ?`)
+					.get(email);
 				return new Response("Login successful", { status: 200 });
 			} catch (error) {
 				console.error("Error logging in:", error);
 				return new Response("Error logging in", { status: 500 });
 			}
-		}
-
+		},
 	},
 	development: process.env.NODE_ENV !== "production",
 });
