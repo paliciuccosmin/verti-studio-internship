@@ -8,10 +8,20 @@
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import SignUp from "./SignUp";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Login from "./Login";
 
 function start() {
 	const root = createRoot(document.getElementById("root")!);
-	root.render(<App />);
+	root.render(
+		<BrowserRouter>
+			<Routes>
+				<Route path="/" element={<SignUp />} />
+				<Route path="/login" element={<Login />} />
+				<Route path="/app" element={<App />} />
+			</Routes>
+		</BrowserRouter>
+	);
 }
 
 if (document.readyState === "loading") {

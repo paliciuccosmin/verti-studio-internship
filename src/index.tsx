@@ -6,7 +6,7 @@ import { computeBitSlow } from "./bitslow";
 import bcrypt from "bcryptjs";
 
 // Initialize the database
-const db = new Database(":memory:");
+const db = new Database("mydb.sqlite");
 
 // Seed the database with random data
 seedDatabase(db, {
@@ -19,7 +19,50 @@ seedDatabase(db, {
 const server = serve({
 	routes: {
 		// Serve index.html for all unmatched routes.
-		"/*": index,
+		"/api/signup":{
+			POST: async (req) => {
+				try {
+					const { name, email, password, phone, address } = await req.json();
+			
+					if (!name || !email || !password) {
+						return new Response(JSON.stringify({ error: "Please fill in all fields" }), { status: 400 });
+					}
+			
+					const existingUser = db.prepare("SELECT * FROM clients WHERE email = ?").get(email);
+					if (existingUser) {
+						return new Response(JSON.stringify({ error: "User already exists" }), { status: 409 });
+					}
+			
+					const hashedPassword = await bcrypt.hash(password, 10);
+					const stmt = db.prepare("INSERT INTO clients (name, email, phone, address, password) VALUES (?, ?, ?, ?, ?)");
+					stmt.run(name, email, phone, address, hashedPassword);
+			
+					return new Response(JSON.stringify({ message: "User created successfully" }), { status: 200 });
+				} catch (err) {
+					console.error("Signup error:", err);
+					return new Response(JSON.stringify({ error: "Internal server error" }), { status: 500 });
+				}
+			},
+		},
+		"/api/login": {
+			POST: async (req) => {
+				const { email, password } = await req.json();
+				if (!email || !password) {
+					return new Response("Please fill in all fields", { status: 400 });
+				}
+				const user = db
+					.prepare("SELECT * FROM clients WHERE email = ?")
+					.get(email);
+				if (!user) {
+					return new Response("User not found", { status: 404 });
+				}
+				const isPasswordValid = await bcrypt.compare(password, user.password);
+				if (!isPasswordValid) {
+					return new Response("Invalid password", { status: 401 });
+				}
+				return new Response("Login successful", { status: 200 });
+			},
+		},
 		"/api/transactions": () => {
 			try {
 				const transactions = db
@@ -61,59 +104,7 @@ const server = serve({
 				return new Response("Error fetching transactions", { status: 500 });
 			}
 		},
-		"/api/signup": async (req) => {
-			try {
-				const { name, email, phone, address, password } = await req.json();
-
-				// Hash the password
-				const hashedPassword = bcrypt.hashSync(password, 10);
-
-				// Insert the new client into the database
-				db.run(
-					`INSERT INTO clients (name, email, phone, address, password) VALUES (?, ?, ?, ?, ?)`,
-					name,
-					email,
-					phone,
-					address,
-					hashedPassword,
-				);
-
-				return new Response("User created successfully", { status: 201 });
-			} catch (error) {
-				console.error("Error creating user:", error);
-				return new Response("Error creating user", { status: 500 });
-			}
-		},
-		"/api/login": async (req) => {
-			try {
-				const { email, password } = await req.json();
-
-				// Fetch the user from the database
-				const user = db
-					.query(`SELECT * FROM clients WHERE email = ?`)
-					.get(email);
-
-				if (!user) {
-					return new Response("User not found", { status: 404 });
-				}
-
-				// Check if the password is correct
-				const isPasswordValid = bcrypt.compareSync(password, user.password);
-
-				if (!isPasswordValid) {
-					return new Response("Invalid password", { status: 401 });
-				}
-
-				// Set a cookie or session here if needed
-				const sessionId = db
-					.query(`SELECT id FROM clients WHERE email = ?`)
-					.get(email);
-				return new Response("Login successful", { status: 200 });
-			} catch (error) {
-				console.error("Error logging in:", error);
-				return new Response("Error logging in", { status: 500 });
-			}
-		},
+		"/*": index, // catch-all should come last
 	},
 	development: process.env.NODE_ENV !== "production",
 });

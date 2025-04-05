@@ -1,9 +1,11 @@
+import { time } from "node:console";
 import { useState } from "react";
 
-export function Login() {
+const  Login = () => {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState("");
+	const [success, setSuccess] = useState("");
 
 	const handleLogin = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -17,7 +19,8 @@ export function Login() {
 			if (!res.ok) {
 				throw new Error("Login failed");
 			}
-			setError("Login successful");
+			setSuccess("Login successful");
+			await new Promise(resolve => setTimeout(resolve, 1000));
 			window.location.href = "/profile";
 		} catch (err) {
 			setError((err as Error).message);
@@ -72,13 +75,16 @@ export function Login() {
 					</button>
 				</form>
 				{error && <p className="text-red-500 mt-2">{error}</p>}
-				<p className="mt-4 text-gray-600">
-					Already have an account?{" "}
-					<a href="/login" className="text-indigo-500 hover:underline">
-						Log In
+				{success && <p className="text-green-500 mt-2">{success}</p>}
+				<p className="mt-4">
+					Don't have an account?{" "}
+					<a href="/" className="text-indigo-400 hover:underline">
+						Sign Up
 					</a>
 				</p>
 			</div>
 		</div>
 	);
 }
+
+export default Login;

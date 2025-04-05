@@ -15,7 +15,7 @@ const SignUp = () => {
 			handleError("Please fill in all fields");
 			return;
 		}
-		fetch("/api/signup", {
+		fetch("http://localhost:3000/api/signup", {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -23,7 +23,7 @@ const SignUp = () => {
 			body: JSON.stringify({ name, email, phone, address, password }),
 		})
 			.then((response) => {
-				if (response.ok) {
+				if (response.status==200) {
 					handleSuccess("User created successfully");
 				} else {
 					handleError("Error creating user");
@@ -61,9 +61,9 @@ const SignUp = () => {
 							className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
 							value={name}
 							onChange={(e) => setname(e.target.value)}
-							placeholder="Enter your username"
+							placeholder="Enter your name"
 							required
-							autoComplete="username"
+							autoComplete="name"
 							autoFocus
 						/>
 					</div>
@@ -134,6 +134,7 @@ const SignUp = () => {
 					</button>
 				</form>
 				{error && <p className="text-red-500 mt-2">{error}</p>}
+				{success && <p className="text-green-500 mt-2">{success}</p>}
 				<p className="mt-4 text-gray-600">
 					Already have an account?{" "}
 					<a href="/login" className="text-indigo-500 hover:underline">
