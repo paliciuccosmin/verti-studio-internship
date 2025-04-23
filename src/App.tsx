@@ -1,7 +1,7 @@
+import Navbar from "./components/Navbar";
 import "./index.css";
 import { useState, useEffect } from "react";
 
-// Define the Transaction interface based on the API response
 interface Transaction {
 	id: number;
 	coin_id: number;
@@ -18,7 +18,7 @@ interface Transaction {
 	computedBitSlow: string;
 }
 
-const ENDPOINT_URL = "http://localhost:3000/"; // NOTE: change this based on your environment.
+const ENDPOINT_URL = "http://localhost:3000/";
 
 function fetchTransactions(): Promise<Transaction[]> {
 	return fetch(ENDPOINT_URL + "api/transactions")
@@ -32,15 +32,24 @@ function useTransactions() {
 	const [error, setError] = useState<Error | null>(null);
 
 	useEffect(() => {
-		fetchTransactions()
-			.then((data) => {
-				setTransactions(data);
-				setLoading(false);
-			})
-			.catch((err) => {
-				setError(err);
-				setLoading(false);
-			});
+		const fetchData = () => {
+			fetchTransactions()
+				.then((data) => {
+					setTransactions(data);
+					setLoading(false);
+				})
+				.catch((err) => {
+					setError(err);
+					setLoading(false);
+				});
+		};
+
+		fetchData();
+
+		// Real-time updates every 30 seconds
+		const intervalId = setInterval(fetchData, 30000);
+
+		return () => clearInterval(intervalId);
 	}, []);
 
 	return { transactions, loading, error };
@@ -48,49 +57,60 @@ function useTransactions() {
 
 export function App() {
 	const { transactions, loading, error } = useTransactions();
-	const [loadingTime, setLoadingTime] = useState(0);
+	const [currentPage, setCurrentPage] = useState(1);
+	const [transactionsPerPage, setTransactionsPerPage] = useState(15);
+	const [filters, setFilters] = useState({
+		startDate: "",
+		endDate: "",
+		bitSlowMin: "",
+		bitSlowMax: "",
+		buyerName: "",
+		sellerName: "",
+	});
 
-	useEffect(() => {
-		let timerId: number | undefined;
+	const filteredTransactions = transactions.filter((transaction) => {
+		const { startDate, endDate, bitSlowMin, bitSlowMax, buyerName, sellerName } = filters;
 
-		if (loading) {
-			timerId = window.setInterval(() => {
-				setLoadingTime((prevTime) => prevTime + 1);
-			}, 1000);
-		}
+		const transactionDate = new Date(transaction.transaction_date);
+		const isWithinDateRange =
+			(!startDate || transactionDate >= new Date(startDate)) &&
+			(!endDate || transactionDate <= new Date(endDate));
 
-		return () => {
-			if (timerId) clearInterval(timerId);
-		};
-	}, [loading]);
+		const isWithinBitSlowRange =
+			(!bitSlowMin || transaction.computedBitSlow >= bitSlowMin) &&
+			(!bitSlowMax || transaction.computedBitSlow <= bitSlowMax);
+
+		const matchesBuyerName = buyerName
+			? transaction.buyer_name.toLowerCase().includes(buyerName.toLowerCase())
+			: true;
+
+		const matchesSellerName = sellerName
+			? transaction.seller_name?.toLowerCase().includes(sellerName.toLowerCase())
+			: true;
+
+		return isWithinDateRange && isWithinBitSlowRange && matchesBuyerName && matchesSellerName;
+	});
+
+	const totalPages = Math.ceil(filteredTransactions.length / transactionsPerPage);
+	const paginatedTransactions = filteredTransactions.slice(
+		(currentPage - 1) * transactionsPerPage,
+		currentPage * transactionsPerPage
+	);
+
+	const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const { name, value } = e.target;
+		setFilters((prev) => ({ ...prev, [name]: value }));
+	};
 
 	if (loading) {
 		return (
-			<div className="flex flex-col justify-center items-center h-screen bg-gray-50">
-				<div className="w-16 h-16 mb-4 border-t-4 border-b-4 border-blue-500 rounded-full animate-spin"></div>
-				<div className="animate-pulse flex flex-col items-center">
-					<h2 className="text-xl font-semibold text-gray-700 mb-2">
-						Loading Transactions
-					</h2>
-					<p className="text-sm text-gray-600 mb-2">
-						Time elapsed: {loadingTime} seconds
-					</p>
-					<div className="flex space-x-1">
-						<div
-							className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
-							style={{ animationDelay: "0ms" }}
-						></div>
-						<div
-							className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
-							style={{ animationDelay: "150ms" }}
-						></div>
-						<div
-							className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
-							style={{ animationDelay: "300ms" }}
-						></div>
-					</div>
+			<>
+				<Navbar />
+				<div className="flex flex-col justify-center items-center h-screen bg-gray-50">
+					<div className="w-16 h-16 mb-4 border-t-4 border-b-4 border-blue-500 rounded-full animate-spin"></div>
+					<p>Loading Transactions...</p>
 				</div>
-			</div>
+			</>
 		);
 	}
 
@@ -103,14 +123,122 @@ export function App() {
 	}
 
 	return (
-		<div className="max-w-7xl mx-auto p-4">
-			<h1 className="text-3xl font-bold mb-8 text-gray-800">
-				BitSlow Transactions
-			</h1>
+		<>
+			<Navbar />
+			<div className="max-w-7xl mx-auto p-4">
+				<h1 className="text-3xl font-bold mb-8 text-gray-800">BitSlow Transactions</h1>
 
-			{transactions.length === 0 ? (
-				<p className="text-gray-500">No transactions found</p>
-			) : (
+				{/* Filters */}
+			<div className="mb-6">
+			<h2 className="text-2xl font-bold mb-4">Filters</h2>
+			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+				<div>
+				<label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+				<input
+					type="date"
+					name="startDate"
+					value={filters.startDate}
+					onChange={handleFilterChange}
+					className="w-full p-2 border border-gray-300 rounded-md"
+				/>
+				</div>
+				<div>
+				<label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+				<input
+					type="date"
+					name="endDate"
+					value={filters.endDate}
+					onChange={handleFilterChange}
+					className="w-full p-2 border border-gray-300 rounded-md"
+				/>
+				</div>
+				<div>
+				<label className="block text-sm font-medium text-gray-700 mb-1">Min BitSlow</label>
+				<input
+					type="number"
+					name="bitSlowMin"
+					value={filters.bitSlowMin}
+					onChange={handleFilterChange}
+					className="w-full p-2 border border-gray-300 rounded-md"
+					placeholder="Min"
+				/>
+				</div>
+				<div>
+				<label className="block text-sm font-medium text-gray-700 mb-1">Max BitSlow</label>
+				<input
+					type="number"
+					name="bitSlowMax"
+					value={filters.bitSlowMax}
+					onChange={handleFilterChange}
+					className="w-full p-2 border border-gray-300 rounded-md"
+					placeholder="Max"
+				/>
+				</div>
+				<div>
+				<label className="block text-sm font-medium text-gray-700 mb-1">Buyer Name</label>
+				<input
+					type="text"
+					name="buyerName"
+					value={filters.buyerName}
+					onChange={handleFilterChange}
+					className="w-full p-2 border border-gray-300 rounded-md"
+					placeholder="Buyer Name"
+				/>
+				</div>
+				<div>
+				<label className="block text-sm font-medium text-gray-700 mb-1">Seller Name</label>
+				<input
+					type="text"
+					name="sellerName"
+					value={filters.sellerName}
+					onChange={handleFilterChange}
+					className="w-full p-2 border border-gray-300 rounded-md"
+					placeholder="Seller Name"
+				/>
+				</div>
+			</div>
+			</div>
+
+
+				{/* Pagination Controls */}
+				<div className="flex justify-between items-center mb-4">
+					<div>
+						<label htmlFor="transactionsPerPage" className="mr-2">
+							Transactions per page:
+						</label>
+						<select
+							id="transactionsPerPage"
+							value={transactionsPerPage}
+							onChange={(e) => setTransactionsPerPage(Number(e.target.value))}
+							className="p-2 border rounded"
+						>
+							<option value={15}>15</option>
+							<option value={30}>30</option>
+							<option value={50}>50</option>
+						</select>
+					</div>
+					<div>
+						<button
+							disabled={currentPage === 1}
+							onClick={() => setCurrentPage((prev) => prev - 1)}
+							className="p-2 border rounded mr-2"
+						>
+							Previous
+						</button>
+						<span>
+							Page {currentPage} of {totalPages}
+						</span>
+						<button
+							disabled={currentPage === totalPages}
+							onClick={() => setCurrentPage((prev) => prev + 1)}
+							className="p-2 border rounded ml-2"
+						>
+							Next
+						</button>
+					</div>
+				</div>
+
+				{/* Transactions Table */}
 				<div className="overflow-x-auto rounded-lg shadow-md">
 					<table className="w-full border-collapse bg-white">
 						<thead>
@@ -124,10 +252,12 @@ export function App() {
 							</tr>
 						</thead>
 						<tbody>
-							{transactions.map((transaction, index) => (
+							{paginatedTransactions.map((transaction, index) => (
 								<tr
 									key={transaction.id}
-									className={`hover:bg-gray-50 transition-colors ${index === transactions.length - 1 ? "" : "border-b border-gray-200"}`}
+									className={`hover:bg-gray-50 transition-colors ${
+										index === paginatedTransactions.length - 1 ? "" : "border-b border-gray-200"
+									}`}
 								>
 									<td className="p-4 text-gray-600">{transaction.id}</td>
 									<td className="p-4">
@@ -136,8 +266,7 @@ export function App() {
 												{transaction.computedBitSlow}
 											</div>
 											<div className="text-xs text-gray-500 mt-1">
-												Bits: {transaction.bit1}, {transaction.bit2},{" "}
-												{transaction.bit3}
+												Bits: {transaction.bit1}, {transaction.bit2}, {transaction.bit3}
 											</div>
 											<div className="text-xs text-gray-500">
 												Value: ${transaction.value.toLocaleString()}
@@ -145,13 +274,9 @@ export function App() {
 										</div>
 									</td>
 									<td className="p-4 text-gray-700">
-										{transaction.seller_name
-											? transaction.seller_name
-											: "Original Issuer"}
+										{transaction.seller_name ? transaction.seller_name : "Original Issuer"}
 									</td>
-									<td className="p-4 text-gray-700">
-										{transaction.buyer_name}
-									</td>
+									<td className="p-4 text-gray-700">{transaction.buyer_name}</td>
 									<td className="p-4 text-right font-semibold text-gray-800">
 										${transaction.amount.toLocaleString()}
 									</td>
@@ -163,8 +288,8 @@ export function App() {
 						</tbody>
 					</table>
 				</div>
-			)}
-		</div>
+			</div>
+		</>
 	);
 }
 

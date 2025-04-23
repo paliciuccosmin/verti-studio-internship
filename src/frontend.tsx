@@ -11,6 +11,7 @@ import SignUp from "./SignUp";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Login from "./Login";
 import Profile from "./Profile";
+import Shop from "./Shop";
 
 function start() {
 	const root = createRoot(document.getElementById("root")!);
@@ -20,6 +21,7 @@ function start() {
 				<Route path="/" element={<SignUp />} />
 				<Route path="/login" element={<Login />} />
 				<Route path="/app" element={<App />} />
+				<Route path="/shop" element={<Shop />} />
 				<Route path="/profile" element={<Profile />} />
 			</Routes>
 		</BrowserRouter>,

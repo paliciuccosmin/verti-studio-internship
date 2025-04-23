@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom"; // Use useNavigate instead of useHistory
+import Navbar from "./components/Navbar";
 
 const Profile = () => {
 	interface Transaction {
@@ -53,21 +54,6 @@ const Profile = () => {
 		fetchProfile();
 	}, [navigate]);
 
-	const logout = async () => {
-		try {
-			const res = await fetch("/api/logout", {
-				method: "POST",
-				credentials: "include", // Ensure cookies are included in the request
-			});
-			if (!res.ok) {
-				throw new Error("Logout failed");
-			}
-			// Optionally, you can redirect to the login page after logout
-			navigate("/login"); // Use navigate instead of history.push()
-		} catch (err: any) {
-			setError(err.message);
-		}
-	};
 
 	if (error) {
 		return <div>{error}</div>;
@@ -78,17 +64,8 @@ const Profile = () => {
 	}
 
 	return (
-		<div className="min-h-screen bg-gray-50 p-6">
-			<header className="flex justify-between items-center mb-6">
-				<h1 className="text-3xl font-bold text-gray-800">My Profile</h1>
-				<button
-					onClick={logout}
-					className="bg-red-500 text-white px-4 py-2 rounded shadow hover:bg-red-600"
-				>
-					Logout
-				</button>
-			</header>
-
+		<>
+		<Navbar />
 			<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 				{/* Profile Card */}
 				<div className="bg-white rounded-xl p-6 shadow-md col-span-1">
@@ -177,7 +154,7 @@ const Profile = () => {
 					</table>
 				</div>
 			</div>
-		</div>
+		</>
 	);
 };
 
