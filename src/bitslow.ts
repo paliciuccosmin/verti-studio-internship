@@ -1,5 +1,3 @@
-import { CryptoHasher } from "bun";
-
 /**
  * Compute the BitSlow based on its components.
  * @param bit1 The first component.
@@ -29,7 +27,7 @@ export function computeBitSlow(
 		}
 	}
 
-	const hasher = new CryptoHasher("md5");
+	const hasher = new Bun.CryptoHasher("md5");
 	hasher.update(n.toString());
 	return hasher.digest("hex");
 }

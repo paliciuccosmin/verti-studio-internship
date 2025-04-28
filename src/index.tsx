@@ -9,13 +9,39 @@ import jwt from "jsonwebtoken";
 // Initialize the database
 const db = new Database("mydb.sqlite");
 
-// Seed the database with random data
+// //Seed the database with random data
 // seedDatabase(db, {
 // 	clientCount: 30,
 // 	bitSlowCount: 20,
 // 	transactionCount: 50,
 // 	clearExisting: true,
-// });
+//  });
+
+// Helper function to get userId from JWT cookie
+function getUserIdFromRequest(req: Request): number | null {
+	const cookieHeader = req.headers.get("Cookie");
+	if (!cookieHeader) return null;
+
+	const cookies = cookieHeader
+		.split(";")
+		.reduce<Record<string, string>>((acc, cookie) => {
+			const [name, value] = cookie.trim().split("=");
+			acc[name] = value;
+			return acc;
+		}, {});
+
+	const token = cookies.token;
+	if (!token) return null;
+
+	try {
+		const decoded = jwt.verify(token, "process.env.JWT_SECRET") as {
+			id: number;
+		};
+		return decoded.id;
+	} catch {
+		return null;
+	}
+}
 
 const server = serve({
 	routes: {
@@ -117,11 +143,13 @@ const server = serve({
 				}
 
 				// Extract the token from the cookies
-				const cookies = cookieHeader.split(";").reduce((acc, cookie) => {
-					const [name, value] = cookie.trim().split("=");
-					acc[name] = value;
-					return acc;
-				}, {});
+				const cookies = cookieHeader
+					.split(";")
+					.reduce<Record<string, string>>((acc, cookie) => {
+						const [name, value] = cookie.trim().split("=");
+						acc[name] = value;
+						return acc;
+					}, {});
 
 				const token = cookies.token;
 
@@ -157,7 +185,7 @@ const server = serve({
 							FROM coins 
 							WHERE client_id = ?`,
 						)
-						.get(userId);
+						.get(userId) as { totalValue: number; totalBitSlow: number };
 
 					const profileData = {
 						totalTransactions,
@@ -219,8 +247,10 @@ const server = serve({
 					.all();
 
 				// Add computed BitSlow to each transaction
-				const enhancedTransactions = transactions.map((transaction) => ({
-					...transaction,
+				const enhancedTransactions = (
+					transactions as Array<{ bit1: number; bit2: number; bit3: number }>
+				).map((transaction) => ({
+					...(transaction as Record<string, any>),
 					computedBitSlow: computeBitSlow(
 						transaction.bit1,
 						transaction.bit2,
@@ -234,7 +264,163 @@ const server = serve({
 				return new Response("Error fetching transactions", { status: 500 });
 			}
 		},
-		"/*": index, // catch-all should come last
+		"/api/coins": {
+			GET: async (req) => {
+				const userId = getUserIdFromRequest(req);
+				if (!userId) {
+					return new Response("Unauthorized", { status: 401 });
+				}
+
+				try {
+					const coins = db
+						.query(`
+          SELECT c.coin_id, c.bit1, c.bit2, c.bit3, c.value, c.client_id,
+                 COALESCE(u.name, '') as owner_name
+          FROM coins c
+          LEFT JOIN clients u ON c.client_id = u.id
+          ORDER BY c.coin_id ASC
+        `)
+						.all();
+
+					const coinsWithHash = coins.map((coin: any) => {
+						const hash = computeBitSlow(coin.bit1, coin.bit2, coin.bit3);
+						return {
+							...coin,
+							hash,
+						};
+					});
+
+					return new Response(JSON.stringify(coinsWithHash), {
+						status: 200,
+						headers: { "Content-Type": "application/json" },
+					});
+				} catch (error) {
+					console.error("Error listing coins:", error);
+					return new Response("Internal server error", { status: 500 });
+				}
+			},
+
+			POST: async (req) => {
+				const userId = getUserIdFromRequest(req);
+				if (!userId) {
+					return new Response("Unauthorized", { status: 401 });
+				}
+
+				try {
+					const { amount } = await req.json();
+					if (amount == null) {
+						return new Response("Missing amount", { status: 400 });
+					}
+
+					const { count } = db
+						.query("SELECT COUNT(*) as count FROM coins")
+						.get() as { count: number };
+					if (count >= 1000) {
+						return new Response("No more unique combos left", { status: 409 });
+					}
+
+					const usedTriples = db
+						.query("SELECT bit1, bit2, bit3 FROM coins")
+						.all() as Array<{ bit1: number; bit2: number; bit3: number }>;
+
+					const usedSet = new Set(
+						usedTriples.map((c) => `${c.bit1}-${c.bit2}-${c.bit3}`),
+					);
+
+					let foundTriple: [number, number, number] | null = null;
+					for (let x = 1; x <= 10 && !foundTriple; x++) {
+						for (let y = 1; y <= 10 && !foundTriple; y++) {
+							for (let z = 1; z <= 10 && !foundTriple; z++) {
+								const key = `${x}-${y}-${z}`;
+								if (!usedSet.has(key)) {
+									foundTriple = [x, y, z];
+									console.log(
+										`Found unique combo: ${x}, ${y}, ${z} (key: ${key})`,
+									);
+									break;
+								}
+							}
+						}
+					}
+
+					if (!foundTriple) {
+						return new Response("No more unique combos left", { status: 409 });
+					}
+
+					const [bit1, bit2, bit3] = foundTriple;
+
+					db.prepare(`
+        INSERT INTO coins (bit1, bit2, bit3, value, client_id)
+        VALUES (?, ?, ?, ?, NULL)
+      `).run(bit1, bit2, bit3, amount);
+
+					return new Response(
+						JSON.stringify({ message: "Coin created successfully" }),
+						{ status: 200 },
+					);
+				} catch (error) {
+					console.error("Error generating coin:", error);
+					return new Response("Internal server error", { status: 500 });
+				}
+			},
+		},
+
+		"/api/buy-coin": {
+			POST: async (req) => {
+				const userId = getUserIdFromRequest(req);
+				if (!userId) {
+					return new Response("Unauthorized", { status: 401 });
+				}
+
+				try {
+					const { coin_id } = await req.json();
+					if (!coin_id) {
+						return new Response("Missing coin_id", { status: 400 });
+					}
+
+					const coin = db
+						.query(
+							"SELECT coin_id, client_id, value, bit1, bit2, bit3 FROM coins WHERE coin_id = ?",
+						)
+						.get(coin_id) as {
+						coin_id: number;
+						client_id: number | null;
+						value: number;
+						bit1: number;
+						bit2: number;
+						bit3: number;
+					};
+
+					if (!coin) {
+						return new Response("Coin not found", { status: 404 });
+					}
+
+					const sellerId = coin.client_id;
+					const transactionAmount = coin.value || 0;
+
+					db.prepare(
+						`INSERT INTO transactions (coin_id, buyer_id, seller_id, amount)
+         VALUES (?, ?, ?, ?)`,
+					).run(coin.coin_id, userId, sellerId, transactionAmount);
+
+					db.prepare(`UPDATE coins SET client_id = ? WHERE coin_id = ?`).run(
+						userId,
+						coin.coin_id,
+					);
+
+					return new Response(
+						JSON.stringify({ message: "Coin bought successfully" }),
+						{
+							status: 200,
+						},
+					);
+				} catch (error) {
+					console.error("Error buying coin:", error);
+					return new Response("Internal server error", { status: 500 });
+				}
+			},
+		},
+		"/*": index, // catch-all
 	},
 	development: process.env.NODE_ENV !== "production",
 });

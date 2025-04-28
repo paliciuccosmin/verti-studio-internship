@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom"; // Use useNavigate instead of useHistory
+import { useNavigate } from "react-router-dom";
 import Navbar from "./components/Navbar";
 
 const Profile = () => {
@@ -27,7 +27,7 @@ const Profile = () => {
 
 	const [profile, setProfile] = useState<ProfileData | null>(null);
 	const [error, setError] = useState(null);
-	const navigate = useNavigate(); // Use navigate instead of history.push()
+	const navigate = useNavigate();
 
 	useEffect(() => {
 		const fetchProfile = async () => {
@@ -46,14 +46,11 @@ const Profile = () => {
 			} catch (err: any) {
 				setError(err.message);
 				// Redirect to login page if not authenticated
-				navigate("/login"); // Use navigate instead of history.push()
+				navigate("/login");
 			}
 		};
-		// Call the fetchProfile function to get the profile data
-
 		fetchProfile();
 	}, [navigate]);
-
 
 	if (error) {
 		return <div>{error}</div>;
@@ -65,7 +62,7 @@ const Profile = () => {
 
 	return (
 		<>
-		<Navbar />
+			<Navbar />
 			<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 				{/* Profile Card */}
 				<div className="bg-white rounded-xl p-6 shadow-md col-span-1">
@@ -146,7 +143,11 @@ const Profile = () => {
 									<td className="px-4 py-2">{tx.buyer_id}</td>
 									<td className="px-4 py-2">{tx.seller_id}</td>
 									<td className="px-4 py-2">
-										{new Date(tx.timestamp).toLocaleString()}
+										{tx.transaction_date
+											? new Date(
+													tx.transaction_date.replace(" ", "T"),
+												).toLocaleString()
+											: "Unknown"}
 									</td>
 								</tr>
 							))}
